@@ -1,0 +1,67 @@
+
+#1. ICMP (Ping) & TCP
+alert icmp any any -> 10.10.10.4 any (msg:"ICMP detected"; sid:10000001;)
+#alert tcp any any -> any 80 (msg:"HTTP Access Detected"; sid:1000002;) // Commented out as unnecessary for general monitoring
+#alert tcp any any -> any any (msg:"TCP Packet Detected"; sid:1000003;) // Commented out as generic and potentially noisy
+
+
+#2. SQL Inject Alert & Injection XSS
+alert tcp any any -> 10.10.10.4 80 (msg:"SQL Injection Attempt Detected"; content:"GET"; nocase; content:"' or '1'='1"; nocase; sid:1000004;)
+alert tcp any any -> 10.10.10.4 80 (msg: "Error Based SQL Injection Detected"; content: "%27" ; sid:100000005; )
+alert tcp any any -> 10.10.10.4 80 (msg: "Error Based SQL Injection Detected"; content: "22" ; sid:100000006; )
+alert tcp any any -> 10.10.10.4 80 (msg: "AND SQL Injection Detected"; content: "and" ; nocase; sid:100000007; )
+alert tcp any any -> 10.10.10.4 80 (msg: "Possible OR SQL Injection Detected"; content: "or"; nocase; pcre:"/or\s+(1|true|false|null)\s*=\s*(1|true|false|null)/i"; sid:100000008; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg: "Form Based SQL Injection Detected"; content: "%27" ; sid:100000009; )
+alert tcp any any -> 10.10.10.4 80 (msg: "Order by SQL Injection"; content: "order" ; sid:1000010; )
+alert tcp any any -> 10.10.10.4 80 (msg: "UNION SELECT SQL Injection"; content: "union" ; sid:1000011; )
+alert tcp any any -> 10.10.10.4 80 (msg: "SQL Injection detected - /vulnerabilities/sqli"; sid: 1000012; uricontent: "/vulnerabilities/sqli/?id="; nocase; pcre:"/(^|&)?id=[^&]*?(%20|%22|%23|%27|%3B|%3C|%3D|%3E|%7C|\b(?:UNION|AND|OR|SELECT|NULL|CONCAT|FROM|EXEC|IF|SLEEP|CONVERT|HAVING|INSERT|UPDATE|DELETE|DROP|CREATE|CAST|LIKE|IN)\b|--)/im"; nocase; )
+alert tcp any any -> 10.10.10.4 80 (msg: "SQL Blind Injection detected - /vulnerabilities/sqli_blind"; sid: 1000013; uricontent: "/vulnerabilities/sqli_blind/?id="; nocase; pcre:"/(^|&)?id=[^&]*?(%20|%22|%23|%27|%3B|%3C|%3D|%3E|%7C|\b(?:UNION|AND|OR|SELECT|NULL|CONCAT|FROM|EXEC|IF|SLEEP|CONVERT|HAVING|INSERT|UPDATE|DELETE|DROP|CREATE|CAST|LIKE|IN)\b|--)/im"; nocase; )
+
+#3. Brute Force Alert
+drop tcp any any -> 10.10.10.4 80 (msg: "Hacker tool found ALERT ALERT"; content:"(Hydra)"; offset: 12; sid: 1000018; rev: 2;)
+alert tcp any any -> 10.10.10.4 80 (msg: "Potential Brute Force Attack"; sid: 1000019; Flow: established,from_client; Uricontent: "/vulnerabilities/brute"; detection_filter: track by_src, count 5, seconds 60; )
+alert tcp any any -> 10.10.10.4 80 (msg:"Hydra User-Agent Detected"; content:"User-Agent: Hydra"; http_header; sid:1000043; rev:1;)
+alert tcp any any -> 10.10.10.4 22 (msg:"Hydra SSH Authentication Attempt Detected"; content:"SSH-"; depth:4; sid:1000044; rev:1;)
+alert tcp any any -> 10.10.10.4 21 (msg:"Hydra FTP Authentication Attempt Detected"; content:"220 "; depth:4; sid:1000045; rev:1;)
+alert tcp any any -> 10.10.10.4 23 (msg:"Hydra Telnet Authentication Attempt Detected"; content:"Telnet"; sid:1000046; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"Brute Force Login Attempt Detected"; content:"POST"; http_method; content:"/login"; http_uri; threshold: type threshold, track by_src, count 5, seconds 10; sid:1000047; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"Brute Force Large POST Request Detected"; content:"POST"; http_method; content:"/login"; http_uri; pcre:"/username=.{10,}&password=.{10,}/"; sid:1000048; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"Brute Force Invalid Login Response Detected"; content:"Login failed"; http_client_body; sid:1000049; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"Hydra User-Agent Detected"; content:"User-Agent: Hydra"; http_header; sid:1000043; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"Hydra HTTP POST Brute Force Attempt Detected"; content:"POST"; http_method; content:"/wordpress/wp-login.php"; http_uri; content:"log="; content:"&pwd="; http_client_body; pcre:"/log=\^USER\^&pwd=\^PASS\^/"; sid:1000051; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"Hydra HTTP POST Large Request Detected"; content:"POST"; http_method; content:"/wordpress/wp-login.php"; http_uri; pcre:"/log=.{1,}&pwd=.{1,}/"; http_client_body; sid:1000052; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"WordPress Login Failed Detected"; content:"Login failed"; http_client_body; uricontent:"/wordpress/wp-login.php"; sid:1000053; rev:1;)
+
+alert tcp any any -> 10.10.10.4 80 (msg:"Multiple Failed Logins Detected"; content:"Login failed"; http_client_body; detection_filter:track by_src, count 5, seconds 60; uricontent:"/wordpress/wp-login.php"; sid:1000054; rev:1;)
+
+
+#4. Directory Traversal
+alert TCP any any -> 10.10.10.4 80 (Msg: "Possible Path Traversal attempt 2"; uricontent:"/vulnerability/fi/?page="; content:"../"; sid: 1000020; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg: "Possible Path Traversal attempt"; content: "GET"; http_method; content: "../"; http_uri; sid: 1000021; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg: "Possible Remote File Inclusion attempt"; uricontent:"/vulnerability/fi/?page="; pcre:"/\?page=https?\x3a\x2f\x2f/i"; sid: 1000022; rev:1;)
+
+#5. Nmap Detections
+alert icmp any any -> 10.10.10.4 any (msg: "NMAP ping sweep Scan"; dsize:0;sid:100000023; rev: 1;)
+alert tcp any any -> 10.10.10.4 22 (msg: "NMAP TCP Scan";sid:10000024; rev:2; )
+alert tcp any any -> 10.10.10.4 22 (msg:"Nmap XMAS Tree Scan"; flags:FPU; sid:1000025; rev:1; )
+alert tcp any any -> 10.10.10.4 22 (msg:"Nmap FIN Scan"; flags:F; sid:1000026; rev:1;)
+alert tcp any any -> 10.10.10.4 22 (msg:"Nmap NULL Scan"; flags:0; sid:1000027; rev:1; )
+alert udp any any -> 10.10.10.4 any ( msg:"Nmap UDP Scan"; sid:1000028; rev:1; )
+alert tcp any any -> 10.10.10.4 any (msg:"Nmap Version Detection -sV Detected TCP"; content:"|0d 0a|"; content:"Server: "; within:20; sid:1000050; rev:1;)
+alert tcp any any -> 10.10.10.4 any (msg:"Nmap Script Scan -sC Detected"; content:"Nmap Scripting Engine"; sid:1000051; rev:1;)
+alert tcp any any -> 10.10.10.4 any (msg:"Nmap Full Port Scan -p- Detected"; flags:S; threshold:type both, track by_src, count 100, seconds 10; sid:1000029; rev:1;)
+alert tcp any any -> 10.10.10.4 any (msg:"Nmap Aggressive Scan -A Detected"; flags:S; threshold:type both, track by_src, count 50, seconds 10; sid:1000030; rev:1;)
+alert tcp any any -> 10.10.10.4 any (msg:"Nmap Script Scan Detected"; content:"Nmap"; content:"Starting Nmap"; content:"SCRIPT"; sid:1000032; rev:1;)
+
+
+#6. WPScan Detections
+alert tcp any any -> 10.10.10.4 80 (msg:"WPScan User-Agent Detected"; content:"User-Agent: WPScan"; http_header; sid:1000033; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"WPScan HTTP Request Detected"; content:"/wp-content/plugins/"; http_uri; sid:1000034; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"WPScan URI Parameters Detected"; content:"wpscan_token="; pcre:"/wpscan_token=\d+/"; http_uri; sid:1000035; rev:1;)
+alert tcp any any -> 10.10.10.4 80 (msg:"WPScan Web Request Detected"; content:"wpscan"; pcre:"/wpscan\/v\d+\.\d+/"; http_uri; sid:1000036; rev:1;)
+
+#7. Burp Suite Detections
+alert tcp any any -> 10.10.10.4 any (msg:"Burp Suite User-Agent Detected"; content:"User-Agent: Burp Suite"; http_header; sid:1000039; rev:1;)
+alert tcp any any -> 10.10.10.4 any (msg:"Burp Suite Scanner Probes Detected"; content:"Burp"; http_header; sid:1000040; rev:1;)
+alert tcp any any -> 10.10.10.4 any (msg:"Burp Suite Intruder Usage Detected"; content:"Burp Intruder"; http_header; sid:1000041; rev:1;)
+alert tcp any any -> 10.10.10.4 any (msg:"Burp Suite Proxy Usage Detected"; content:"Burp Proxy"; http_header; sid:1000042; rev:1;)
